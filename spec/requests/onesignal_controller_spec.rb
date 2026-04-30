@@ -1,4 +1,6 @@
-  require 'rails_helper'
+# frozen_string_literal: true
+
+require 'rails_helper'
 
 describe DiscourseOnesignal::OnesignalController do
 
@@ -14,16 +16,20 @@ describe DiscourseOnesignal::OnesignalController do
   end
 
   it 'works!' do
-    sign_in(Fabricate(:user))
+    user = Fabricate(:user)
+    sign_in(user)
 
     post "/onesignal/subscribe.json", params: {
       token: "a token",
       application_name: "My App",
-      platform: "ios"
+      platform: "ios",
+      subscription_id: "subscription-id",
     }
 
     expect(response.status).to eq(200)
     expect(OnesignalSubscription.last.device_token).to eq('a token')
+    expect(OnesignalSubscription.last.subscription_id).to eq('subscription-id')
+    expect(JSON.parse(response.body)["external_id"]).to eq("discourse-user-#{user.id}")
   end
 
   it 'replaces record when switching users on device' do

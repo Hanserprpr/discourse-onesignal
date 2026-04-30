@@ -11,6 +11,7 @@ end
 #  id                :bigint           not null, primary key
 #  user_id           :integer          not null
 #  device_token      :string           not null
+#  subscription_id   :string
 #  application_name  :string           not null
 #  platform          :string           not null
 #  created_at        :datetime         not null

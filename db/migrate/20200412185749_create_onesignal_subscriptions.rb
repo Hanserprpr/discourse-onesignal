@@ -5,6 +5,7 @@ class CreateOnesignalSubscriptions < ActiveRecord::Migration[5.1]
     create_table :onesignal_subscriptions do |t|
       t.integer :user_id, null: false
       t.string :device_token, null: false
+      t.string :subscription_id
       t.string :application_name, null: false
       t.string :platform, null: false
       t.timestamps

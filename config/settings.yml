@@ -3,5 +3,6 @@ plugins:
     default: false
   onesignal_app_id:
     default: ''
+    client: true
   onesignal_rest_api_key:
     default: ''
