@@ -42,3 +42,15 @@ for any notification type the plugin cannot identify.
 The current plugin does not generate Huawei travel, health, account, express,
 finance, device reminder, mail, VoIP, progress, alarm, timer, stopwatch, or
 location sharing categories.
+
+Notification text is also formatted by type:
+
+| Discourse notification type | Heading example | Body example |
+| --- | --- | --- |
+| `private_message` | `来自 李四 的私信` | `你好，方便看一下这个问题吗？` |
+| `chat_message` | `来自 李四 的消息` | `我已经看到了` |
+| `replied` | `插件安装后无法启动` | `张三 回复了你: 请检查一下配置是否填写正确。` |
+| `mentioned` | `插件安装后无法启动` | `张三 提到了你: @alice 可以帮忙看一下吗？` |
+| `liked` | `插件安装后无法启动` | `张三 赞了你的内容` |
+| `watching_first_post` | `新插件发布` | `你关注的内容有更新: OneSignal 插件已更新。` |
+| `assigned` | `待处理举报` | `你有新的待办事项: 用户提交的帖子需要审核。` |

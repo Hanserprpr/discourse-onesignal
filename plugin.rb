@@ -6,6 +6,7 @@
 
 require "net/http"
 require "json"
+require "set"
 
 enabled_site_setting :onesignal_push_enabled
 
@@ -42,8 +43,96 @@ module ::DiscourseOnesignal
     "membership_request_accepted" => "WORK",
   }
 
+  PRIVATE_MESSAGE_NOTIFICATION_TYPES = Set.new(
+    %w[
+      private_message
+      invited_to_private_message
+      group_message_summary
+      chat_message
+      chat_mention
+    ],
+  )
+
+  DIRECT_MESSAGE_NOTIFICATION_TYPES = Set.new(
+    %w[
+      private_message
+      invited_to_private_message
+    ],
+  )
+
+  CHAT_NOTIFICATION_TYPES = Set.new(
+    %w[
+      chat_message
+      chat_mention
+    ],
+  )
+
   def self.external_id_for(user_id)
     "discourse-user-#{user_id}"
+  end
+
+  def self.push_heading_for(payload)
+    username = payload["username"] || payload[:username]
+    topic_title = payload["topic_title"] || payload[:topic_title]
+    notification_type = notification_type_name(payload)
+
+    if DIRECT_MESSAGE_NOTIFICATION_TYPES.include?(notification_type) && username.present?
+      "来自 #{username} 的私信"
+    elsif CHAT_NOTIFICATION_TYPES.include?(notification_type) && username.present?
+      "来自 #{username} 的消息"
+    elsif notification_type == "group_message_summary"
+      "群组有新消息"
+    else
+      topic_title
+    end
+  end
+
+  def self.push_content_for(payload)
+    username = payload["username"] || payload[:username]
+    excerpt = payload["excerpt"] || payload[:excerpt]
+    notification_type = notification_type_name(payload)
+
+    if private_message_notification?(payload)
+      excerpt
+    else
+      case notification_type
+      when "mentioned", "group_mentioned"
+        push_sentence(username, "提到了你", excerpt)
+      when "replied"
+        push_sentence(username, "回复了你", excerpt)
+      when "quoted"
+        push_sentence(username, "引用了你的内容", excerpt)
+      when "linked"
+        push_sentence(username, "链接了你的内容", excerpt)
+      when "liked", "liked_consolidated"
+        push_sentence(username, "赞了你的内容", excerpt)
+      when "watching_first_post", "posted"
+        push_sentence(nil, "你关注的内容有更新", excerpt)
+      when "topic_reminder"
+        push_sentence(nil, "话题提醒", excerpt)
+      when "invited_to_topic"
+        push_sentence(username, "邀请你查看话题", excerpt)
+      when "assigned"
+        push_sentence(nil, "你有新的待办事项", excerpt)
+      when "post_approved"
+        push_sentence(nil, "你的内容已通过审核", excerpt)
+      when "admin_problems"
+        push_sentence(nil, "站点有新的管理提醒", excerpt)
+      when "membership_request_accepted"
+        push_sentence(nil, "你的加入申请已通过", excerpt)
+      when "granted_badge"
+        push_sentence(nil, "你获得了新徽章", excerpt)
+      when "invitee_accepted"
+        push_sentence(username, "接受了你的邀请", excerpt)
+      else
+        push_sentence(username, "有新通知", excerpt)
+      end
+    end
+  end
+
+  def self.push_sentence(username, action, excerpt)
+    subject = username.present? ? "#{username} #{action}" : action
+    excerpt.present? ? "#{subject}: #{excerpt}" : subject
   end
 
   def self.huawei_category_for(payload)
@@ -70,6 +159,10 @@ module ::DiscourseOnesignal
     end
 
     notification_type.to_s
+  end
+
+  def self.private_message_notification?(payload)
+    PRIVATE_MESSAGE_NOTIFICATION_TYPES.include?(notification_type_name(payload))
   end
 end
 
@@ -109,9 +202,6 @@ after_initialize do
           return
         end
 
-        username = payload["username"] || payload[:username]
-        excerpt = payload["excerpt"] || payload[:excerpt]
-        topic_title = payload["topic_title"] || payload[:topic_title]
         post_url = payload["post_url"] || payload[:post_url]
 
         params = {
@@ -120,8 +210,8 @@ after_initialize do
           "include_aliases" => {
             "external_id" => [::DiscourseOnesignal.external_id_for(user_id)],
           },
-          "contents" => {"en" => "#{username} 有新回复: #{excerpt}"},
-          "headings" => {"en" => topic_title},
+          "contents" => {"en" => ::DiscourseOnesignal.push_content_for(payload)},
+          "headings" => {"en" => ::DiscourseOnesignal.push_heading_for(payload)},
           "Huawei_category" => ::DiscourseOnesignal.huawei_category_for(payload),
           "data" => {"discourse_url" => post_url},
           "ios_badgeType" => "Increase",

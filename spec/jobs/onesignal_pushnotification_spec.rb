@@ -47,7 +47,7 @@ describe Jobs::OnesignalPushnotification do
 
     expect(body["app_id"]).to eq("app-id")
     expect(body["target_channel"]).to eq("push")
-    expect(body["contents"]).to eq("en" => "sender 有新回复: hello from discourse")
+    expect(body["contents"]).to eq("en" => "sender 有新通知: hello from discourse")
     expect(body["Huawei_category"]).to eq("MARKETING")
     expect(body["include_aliases"]).to eq(
       "external_id" => ["discourse-user-#{user.id}"],
@@ -71,7 +71,24 @@ describe Jobs::OnesignalPushnotification do
     expect(body["Huawei_category"]).to eq("IM")
   end
 
-  it "maps watched topic notifications to Huawei subscriptions" do
+  it "formats private messages without repeating the sender in the body" do
+    body = nil
+
+    stub_request(:post, "https://api.onesignal.com/notifications")
+      .with { |req| body = JSON.parse(req.body) }
+      .to_return(status: 200, body: { id: "notification-id" }.to_json)
+
+    described_class.new.execute(
+      "payload" => payload.merge(notification_type: "private_message"),
+      "user_id" => user.id,
+      "username" => user.username,
+    )
+
+    expect(body["headings"]).to eq("en" => "来自 sender 的私信")
+    expect(body["contents"]).to eq("en" => "hello from discourse")
+  end
+
+  it "formats watched topic notifications as followed content updates" do
     body = nil
 
     stub_request(:post, "https://api.onesignal.com/notifications")
@@ -85,9 +102,10 @@ describe Jobs::OnesignalPushnotification do
     )
 
     expect(body["Huawei_category"]).to eq("SUBSCRIPTION")
+    expect(body["contents"]).to eq("en" => "你关注的内容有更新: hello from discourse")
   end
 
-  it "maps moderation and task notifications to Huawei work reminders" do
+  it "formats moderation and task notifications as work reminders" do
     body = nil
 
     stub_request(:post, "https://api.onesignal.com/notifications")
@@ -101,9 +119,10 @@ describe Jobs::OnesignalPushnotification do
     )
 
     expect(body["Huawei_category"]).to eq("WORK")
+    expect(body["contents"]).to eq("en" => "你有新的待办事项: hello from discourse")
   end
 
-  it "maps replies and mentions to Huawei subscriptions" do
+  it "formats replies as direct replies" do
     body = nil
 
     stub_request(:post, "https://api.onesignal.com/notifications")
@@ -117,9 +136,27 @@ describe Jobs::OnesignalPushnotification do
     )
 
     expect(body["Huawei_category"]).to eq("SUBSCRIPTION")
+    expect(body["contents"]).to eq("en" => "sender 回复了你: hello from discourse")
   end
 
-  it "maps social interaction notifications to Huawei subscriptions" do
+  it "formats mentions as mentions" do
+    body = nil
+
+    stub_request(:post, "https://api.onesignal.com/notifications")
+      .with { |req| body = JSON.parse(req.body) }
+      .to_return(status: 200, body: { id: "notification-id" }.to_json)
+
+    described_class.new.execute(
+      "payload" => payload.merge(notification_type: "mentioned"),
+      "user_id" => user.id,
+      "username" => user.username,
+    )
+
+    expect(body["Huawei_category"]).to eq("SUBSCRIPTION")
+    expect(body["contents"]).to eq("en" => "sender 提到了你: hello from discourse")
+  end
+
+  it "formats social interaction notifications as subscriptions" do
     body = nil
 
     stub_request(:post, "https://api.onesignal.com/notifications")
@@ -133,6 +170,7 @@ describe Jobs::OnesignalPushnotification do
     )
 
     expect(body["Huawei_category"]).to eq("SUBSCRIPTION")
+    expect(body["contents"]).to eq("en" => "sender 赞了你的内容: hello from discourse")
   end
 
   it "does not fail when OneSignal accepts the request without a notification id" do
