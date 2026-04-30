@@ -1,9 +1,12 @@
 import { later, next } from "@ember/runloop";
+import { inject as service } from "@ember/service";
 import Route from "@ember/routing/route";
 
 export default Route.extend({
+  currentUser: service("current-user"),
+
   afterModel(_model, transition) {
-    if (!this.currentUser) {
+    if (!this.currentUser?.id) {
       next(() => transition.send("showLogin"));
     } else {
       next(() => this.transitionTo("discovery.latest"));
@@ -13,7 +16,7 @@ export default Route.extend({
   activate() {
     this._super(...arguments);
 
-    if (!this.currentUser) {
+    if (!this.currentUser?.id) {
       document.body.classList.add("mobile-app-login-modal");
     }
   },
@@ -21,7 +24,7 @@ export default Route.extend({
   deactivate() {
     this._super(...arguments);
 
-    if (!this.currentUser) {
+    if (!this.currentUser?.id) {
       later(
         () => document.body.classList.remove("mobile-app-login-modal"),
         300

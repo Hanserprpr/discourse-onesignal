@@ -9,8 +9,8 @@ function externalIdFor(userId) {
 export default apiInitializer("1.0.0", (api) => {
   const container = api.container;
   const currentUser = api.getCurrentUser();
-  const capabilities = container.lookup("capabilities:main");
-  const siteSettings = container.lookup("site-settings:main");
+  const capabilities = container.lookup("service:capabilities");
+  const siteSettings = container.lookup("service:site-settings");
 
   if (capabilities.isAppWebview && currentUser) {
     const externalId = externalIdFor(currentUser.id);
