@@ -17,8 +17,59 @@ load File.expand_path('lib/discourse-onesignal/engine.rb', __dir__)
 module ::DiscourseOnesignal
   ONESIGNAL_NOTIFICATIONS_API = "https://api.onesignal.com/notifications"
 
+  HUAWEI_CATEGORY_BY_NOTIFICATION_TYPE = {
+    "private_message" => "IM",
+    "invited_to_private_message" => "IM",
+    "group_message_summary" => "IM",
+    "chat_message" => "IM",
+    "chat_mention" => "IM",
+    "watching_first_post" => "SUBSCRIPTION",
+    "topic_reminder" => "SUBSCRIPTION",
+    "posted" => "SUBSCRIPTION",
+    "invited_to_topic" => "SUBSCRIPTION",
+    "mentioned" => "SUBSCRIPTION",
+    "replied" => "SUBSCRIPTION",
+    "quoted" => "SUBSCRIPTION",
+    "group_mentioned" => "SUBSCRIPTION",
+    "linked" => "SUBSCRIPTION",
+    "liked" => "SUBSCRIPTION",
+    "liked_consolidated" => "SUBSCRIPTION",
+    "granted_badge" => "SUBSCRIPTION",
+    "invitee_accepted" => "SUBSCRIPTION",
+    "assigned" => "WORK",
+    "post_approved" => "WORK",
+    "admin_problems" => "WORK",
+    "membership_request_accepted" => "WORK",
+  }
+
   def self.external_id_for(user_id)
     "discourse-user-#{user_id}"
+  end
+
+  def self.huawei_category_for(payload)
+    notification_type = notification_type_name(payload)
+
+    HUAWEI_CATEGORY_BY_NOTIFICATION_TYPE.fetch(
+      notification_type,
+      SiteSetting.onesignal_huawei_category,
+    )
+  end
+
+  def self.notification_type_name(payload)
+    notification_type =
+      payload["notification_type"] ||
+      payload[:notification_type] ||
+      payload["notification_type_name"] ||
+      payload[:notification_type_name]
+
+    return if notification_type.blank?
+
+    if notification_type.to_s.match?(/\A\d+\z/) && defined?(::Notification)
+      notification_type_id = notification_type.to_i
+      return ::Notification.types.key(notification_type_id).to_s if ::Notification.respond_to?(:types)
+    end
+
+    notification_type.to_s
   end
 end
 
@@ -69,8 +120,9 @@ after_initialize do
           "include_aliases" => {
             "external_id" => [::DiscourseOnesignal.external_id_for(user_id)],
           },
-          "contents" => {"en" => "#{username}: #{excerpt}"},
+          "contents" => {"en" => "#{username} 有新回复: #{excerpt}"},
           "headings" => {"en" => topic_title},
+          "Huawei_category" => ::DiscourseOnesignal.huawei_category_for(payload),
           "data" => {"discourse_url" => post_url},
           "ios_badgeType" => "Increase",
           "ios_badgeCount" => "1",
