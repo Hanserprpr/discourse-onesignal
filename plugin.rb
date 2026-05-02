@@ -73,7 +73,7 @@ module ::DiscourseOnesignal
   end
 
   def self.external_id_auth_hash_for(user_id)
-    secret = SiteSetting.onesignal_identity_verification_secret
+    secret = SiteSetting.onesignal_rest_api_key
     return if secret.blank?
 
     OpenSSL::HMAC.hexdigest("SHA256", secret, external_id_for(user_id))

@@ -4,10 +4,10 @@ require 'rails_helper'
 
 describe DiscourseOnesignal::OnesignalController do
 
-  it 'returns the current user OneSignal identity with an auth hash' do
+  it 'returns the current user OneSignal identity with an auth hash signed by the REST API key' do
     user = Fabricate(:user)
     sign_in(user)
-    SiteSetting.onesignal_identity_verification_secret = "identity-secret"
+    SiteSetting.onesignal_rest_api_key = "rest-api-key"
 
     get "/onesignal/identity.json"
 
@@ -17,7 +17,7 @@ describe DiscourseOnesignal::OnesignalController do
 
     expect(body["external_id"]).to eq(external_id)
     expect(body["external_id_auth_hash"]).to eq(
-      OpenSSL::HMAC.hexdigest("SHA256", "identity-secret", external_id),
+      OpenSSL::HMAC.hexdigest("SHA256", "rest-api-key", external_id),
     )
   end
 
@@ -25,7 +25,7 @@ describe DiscourseOnesignal::OnesignalController do
     user = Fabricate(:user)
     other_user = Fabricate(:user)
     sign_in(user)
-    SiteSetting.onesignal_identity_verification_secret = "identity-secret"
+    SiteSetting.onesignal_rest_api_key = "rest-api-key"
 
     get "/onesignal/identity.json", params: { user_id: other_user.id }
 
@@ -66,7 +66,7 @@ describe DiscourseOnesignal::OnesignalController do
   it 'includes OneSignal identity auth hash when subscribing' do
     user = Fabricate(:user)
     sign_in(user)
-    SiteSetting.onesignal_identity_verification_secret = "identity-secret"
+    SiteSetting.onesignal_rest_api_key = "rest-api-key"
 
     post "/onesignal/subscribe.json", params: {
       token: "a token",
@@ -79,7 +79,7 @@ describe DiscourseOnesignal::OnesignalController do
 
     expect(body["external_id"]).to eq(external_id)
     expect(body["external_id_auth_hash"]).to eq(
-      OpenSSL::HMAC.hexdigest("SHA256", "identity-secret", external_id),
+      OpenSSL::HMAC.hexdigest("SHA256", "rest-api-key", external_id),
     )
   end
 
