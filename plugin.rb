@@ -219,12 +219,13 @@ after_initialize do
         end
 
         post_url = payload["post_url"] || payload[:post_url]
+        external_id = ::DiscourseOnesignal.external_id_for(user_id)
 
         params = {
           "app_id" => SiteSetting.onesignal_app_id,
           "target_channel" => "push",
           "include_aliases" => {
-            "external_id" => [::DiscourseOnesignal.external_id_for(user_id)],
+            "external_id" => [external_id],
           },
           "contents" => {"en" => ::DiscourseOnesignal.push_content_for(payload)},
           "headings" => {"en" => ::DiscourseOnesignal.push_heading_for(payload)},
@@ -234,6 +235,7 @@ after_initialize do
         }
 
         ::DiscourseOnesignal.add_huawei_category!(params, payload)
+        huawei_category = params["huawei_category"]
 
         uri = URI.parse(::DiscourseOnesignal::ONESIGNAL_NOTIFICATIONS_API)
         http = Net::HTTP.new(uri.host, uri.port)
@@ -250,12 +252,18 @@ after_initialize do
           response_body = JSON.parse(response.body.presence || "{}") rescue {}
 
           if response_body["id"].present?
-            Rails.logger.info("Push notification sent via OneSignal to #{args['username']}.")
+            Rails.logger.info(
+              "OneSignal push sent notification_id=#{response_body["id"]} user_id=#{user_id} username=#{args['username']} external_id=#{external_id} huawei_category=#{huawei_category || 'none'}",
+            )
           else
-            Rails.logger.info("OneSignal accepted the push request for #{args['username']}, but no subscribed device was returned.")
+            Rails.logger.info(
+              "OneSignal accepted push request without notification_id user_id=#{user_id} username=#{args['username']} external_id=#{external_id} huawei_category=#{huawei_category || 'none'}",
+            )
           end
         else
-          Rails.logger.error("OneSignal error when sending a push notification to #{args['username']}: HTTP #{response.code} #{response.body}")
+          Rails.logger.error(
+            "OneSignal push failed user_id=#{user_id} username=#{args['username']} external_id=#{external_id} huawei_category=#{huawei_category || 'none'} http_status=#{response.code} response_body=#{response.body}",
+          )
         end
 
       end

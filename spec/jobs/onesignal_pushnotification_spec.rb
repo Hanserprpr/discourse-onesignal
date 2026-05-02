@@ -37,6 +37,10 @@ describe Jobs::OnesignalPushnotification do
           headers: { "Content-Type" => "application/json" },
         )
 
+    expect(Rails.logger).to receive(:info).with(
+      /OneSignal push sent notification_id=notification-id user_id=#{user.id} username=#{user.username} external_id=discourse-user-#{user.id} huawei_category=MARKETING/,
+    )
+
     described_class.new.execute(
       "payload" => payload,
       "user_id" => user.id,
@@ -209,7 +213,7 @@ describe Jobs::OnesignalPushnotification do
     stub_request(:post, "https://api.onesignal.com/notifications")
       .to_return(status: 401, body: { errors: ["not authorized"] }.to_json)
 
-    expect(Rails.logger).to receive(:error).with(/OneSignal error/)
+    expect(Rails.logger).to receive(:error).with(/OneSignal push failed/)
     expect(Rails.logger).not_to receive(:error).with(/rest-api-key/)
 
     described_class.new.execute(
