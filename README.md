@@ -55,13 +55,13 @@ Delivery is now based on the OneSignal external id.
 
 ## Huawei notification categories
 
-This plugin sends OneSignal's documented `Huawei_category` field. The category is mapped
+This plugin sends OneSignal's documented `huawei_category` field. The category is mapped
 from Discourse's `notification_type` when available, and falls back to the
 `onesignal_huawei_category` site setting. The fallback default is `MARKETING`,
 for any notification type the plugin cannot identify. If the fallback setting is
 blank and the plugin cannot map the notification type, the field is omitted.
 
-| Huawei major category | Fine category number and type | Huawei_category | Discourse notification types | Example |
+| Huawei major category | Fine category number and type | huawei_category | Discourse notification types | Example |
 | --- | --- | --- | --- | --- |
 | 服务与通讯 > 社交通讯 | 1 即时聊天 | `IM` | `private_message`, `invited_to_private_message`, `group_message_summary`, `chat_message`, `chat_mention` | `李四 有新私信: 你好，方便看一下这个问题吗？` |
 | 服务与通讯 > 服务提醒 | 3 订阅 | `SUBSCRIPTION` | `watching_first_post`, `topic_reminder`, `posted`, `invited_to_topic`, `mentioned`, `replied`, `quoted`, `group_mentioned`, `linked`, `liked`, `liked_consolidated`, `granted_badge`, `invitee_accepted` | `张三 有新回复: 我已经按教程配置好了...` |
