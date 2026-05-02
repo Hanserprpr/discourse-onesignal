@@ -11,14 +11,19 @@ export default apiInitializer("1.0.0", (api) => {
   if (capabilities.isAppWebview && currentUser) {
     postRNWebviewMessage("currentUsername", currentUser.username);
 
-    ajax("/onesignal/identity.json").then((identity) => {
-      postRNWebviewMessage("onesignalIdentity", {
-        externalId: identity.external_id,
-        externalIdAuthHash: identity.external_id_auth_hash,
-        username: currentUser.username,
-        appId: siteSettings.onesignal_app_id,
+    ajax("/onesignal/identity.json")
+      .then((identity) => {
+        postRNWebviewMessage("onesignalIdentity", {
+          externalId: identity.external_id,
+          externalIdAuthHash: identity.external_id_auth_hash,
+          username: currentUser.username,
+          appId: siteSettings.onesignal_app_id,
+        });
+      })
+      .catch(() => {
+        postRNWebviewMessage("onesignalIdentityError", true);
+        postRNWebviewMessage("onesignalLogout", true);
       });
-    });
   } else if (capabilities.isAppWebview) {
     postRNWebviewMessage("onesignalLogout", true);
   }
