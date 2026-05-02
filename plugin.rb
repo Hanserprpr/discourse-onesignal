@@ -6,6 +6,7 @@
 
 require "net/http"
 require "json"
+require "openssl"
 require "set"
 
 enabled_site_setting :onesignal_push_enabled
@@ -69,6 +70,13 @@ module ::DiscourseOnesignal
 
   def self.external_id_for(user_id)
     "discourse-user-#{user_id}"
+  end
+
+  def self.external_id_auth_hash_for(user_id)
+    secret = SiteSetting.onesignal_identity_verification_secret
+    return if secret.blank?
+
+    OpenSSL::HMAC.hexdigest("SHA256", secret, external_id_for(user_id))
   end
 
   def self.push_heading_for(payload)
@@ -144,6 +152,14 @@ module ::DiscourseOnesignal
     )
   end
 
+  def self.add_huawei_category!(params, payload)
+    huawei_category = huawei_category_for(payload)
+    return if huawei_category.blank?
+
+    # OneSignal's Create Message API documents this key with an uppercase H.
+    params["Huawei_category"] = huawei_category
+  end
+
   def self.notification_type_name(payload)
     notification_type =
       payload["notification_type"] ||
@@ -212,11 +228,12 @@ after_initialize do
           },
           "contents" => {"en" => ::DiscourseOnesignal.push_content_for(payload)},
           "headings" => {"en" => ::DiscourseOnesignal.push_heading_for(payload)},
-          "Huawei_category" => ::DiscourseOnesignal.huawei_category_for(payload),
           "data" => {"discourse_url" => post_url},
           "ios_badgeType" => "Increase",
           "ios_badgeCount" => "1",
         }
+
+        ::DiscourseOnesignal.add_huawei_category!(params, payload)
 
         uri = URI.parse(::DiscourseOnesignal::ONESIGNAL_NOTIFICATIONS_API)
         http = Net::HTTP.new(uri.host, uri.port)

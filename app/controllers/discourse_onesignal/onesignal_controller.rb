@@ -26,13 +26,28 @@ module DiscourseOnesignal
       record.subscription_id = subscription_id if record.respond_to?(:subscription_id=)
       record.save!
 
-      render json: record.as_json.merge(
-        external_id: ::DiscourseOnesignal.external_id_for(current_user.id),
-      )
+      render json: record.as_json.merge(onesignal_identity_json)
+    end
+
+    def identity
+      render json: onesignal_identity_json
     end
 
     def app_login
       render json: success_json
+    end
+
+    private
+
+    def onesignal_identity_json
+      identity = {
+        external_id: ::DiscourseOnesignal.external_id_for(current_user.id),
+      }
+
+      external_id_auth_hash = ::DiscourseOnesignal.external_id_auth_hash_for(current_user.id)
+      identity[:external_id_auth_hash] = external_id_auth_hash if external_id_auth_hash.present?
+
+      identity
     end
   end
 end

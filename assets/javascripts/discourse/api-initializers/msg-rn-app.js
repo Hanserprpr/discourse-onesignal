@@ -2,10 +2,6 @@ import { ajax } from "discourse/lib/ajax";
 import { apiInitializer } from "discourse/lib/api";
 import { postRNWebviewMessage } from "discourse/lib/utilities";
 
-function externalIdFor(userId) {
-  return `discourse-user-${userId}`;
-}
-
 export default apiInitializer("1.0.0", (api) => {
   const container = api.container;
   const currentUser = api.getCurrentUser();
@@ -13,13 +9,15 @@ export default apiInitializer("1.0.0", (api) => {
   const siteSettings = container.lookup("service:site-settings");
 
   if (capabilities.isAppWebview && currentUser) {
-    const externalId = externalIdFor(currentUser.id);
-
     postRNWebviewMessage("currentUsername", currentUser.username);
-    postRNWebviewMessage("onesignalIdentity", {
-      externalId,
-      username: currentUser.username,
-      appId: siteSettings.onesignal_app_id,
+
+    ajax("/onesignal/identity.json").then((identity) => {
+      postRNWebviewMessage("onesignalIdentity", {
+        externalId: identity.external_id,
+        externalIdAuthHash: identity.external_id_auth_hash,
+        username: currentUser.username,
+        appId: siteSettings.onesignal_app_id,
+      });
     });
   } else if (capabilities.isAppWebview) {
     postRNWebviewMessage("onesignalLogout", true);
