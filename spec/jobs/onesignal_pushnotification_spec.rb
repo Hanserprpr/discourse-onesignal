@@ -49,6 +49,7 @@ describe Jobs::OnesignalPushnotification do
     expect(body["target_channel"]).to eq("push")
     expect(body["contents"]).to eq("en" => "sender 有新通知: hello from discourse")
     expect(body["Huawei_category"]).to eq("MARKETING")
+    expect(body).not_to have_key("huawei_category")
     expect(body["include_aliases"]).to eq(
       "external_id" => ["discourse-user-#{user.id}"],
     )
@@ -69,6 +70,23 @@ describe Jobs::OnesignalPushnotification do
     )
 
     expect(body["Huawei_category"]).to eq("IM")
+  end
+
+  it "omits Huawei category when the configured fallback is blank and the notification type is unknown" do
+    body = nil
+    SiteSetting.onesignal_huawei_category = ""
+
+    stub_request(:post, "https://api.onesignal.com/notifications")
+      .with { |req| body = JSON.parse(req.body) }
+      .to_return(status: 200, body: { id: "notification-id" }.to_json)
+
+    described_class.new.execute(
+      "payload" => payload.merge(notification_type: "unknown_notification_type"),
+      "user_id" => user.id,
+      "username" => user.username,
+    )
+
+    expect(body).not_to have_key("Huawei_category")
   end
 
   it "formats private messages without repeating the sender in the body" do

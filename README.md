@@ -14,23 +14,37 @@ message named `onesignalIdentity`. Its payload is:
 ```json
 {
   "externalId": "discourse-user-123",
+  "externalIdAuthHash": "hmac-sha256-signature",
   "username": "alice",
   "appId": "onesignal-app-id"
 }
 ```
 
-When this message is received, call `OneSignal.login(externalId)`. When the
+Enable OneSignal Identity Verification in the OneSignal dashboard, then copy the
+identity verification secret into the Discourse site setting
+`onesignal_identity_verification_secret`. This setting is server-side only and is
+used to sign the current user's external id.
+
+When this message is received, call OneSignal login with both the external id and
+the server-generated auth hash. For SDKs that use the legacy auth-hash API this
+looks like `OneSignal.login(externalId, externalIdAuthHash)`; if your SDK version
+uses an options object, pass the same value as `external_id_auth_hash`. Do not
+construct or accept arbitrary external ids in the mobile client. When the
 Discourse user logs out or switches accounts, call `OneSignal.logout()` before
-binding a different user. The old `/onesignal/subscribe.json` endpoint is still
-available for legacy clients and debug registration, but delivery is now based
-on the OneSignal external id.
+binding a different user.
+
+The old `/onesignal/subscribe.json` endpoint is still available for legacy
+clients and debug registration. Its JSON response also includes `external_id`
+and, when the secret is configured, `external_id_auth_hash`. Delivery is now
+based on the OneSignal external id.
 
 ## Huawei notification categories
 
-This plugin sends OneSignal's `Huawei_category` field. The category is mapped
+This plugin sends OneSignal's documented `Huawei_category` field. The category is mapped
 from Discourse's `notification_type` when available, and falls back to the
 `onesignal_huawei_category` site setting. The fallback default is `MARKETING`,
-for any notification type the plugin cannot identify.
+for any notification type the plugin cannot identify. If the fallback setting is
+blank and the plugin cannot map the notification type, the field is omitted.
 
 | Huawei major category | Fine category number and type | Huawei_category | Discourse notification types | Example |
 | --- | --- | --- | --- | --- |
