@@ -44,8 +44,9 @@ bound to a stale Discourse user.
 Upgrade note: this plugin does not use a separate identity verification secret.
 Legacy `external_id_auth_hash` values are signed with `onesignal_rest_api_key`.
 If you previously tested a branch that introduced
-`onesignal_identity_verification_secret`, remove that setting and make sure the
-configured REST API key matches the key expected by OneSignal before deploying.
+`onesignal_identity_verification_secret`, that value is now ignored. Verify that
+`onesignal_rest_api_key` matches the key expected by OneSignal for legacy HMAC
+verification before deploying.
 
 The old `/onesignal/subscribe.json` endpoint is still available for legacy
 clients and debug registration. Its JSON response also includes `external_id`
