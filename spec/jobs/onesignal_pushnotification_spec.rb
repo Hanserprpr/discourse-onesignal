@@ -48,8 +48,8 @@ describe Jobs::OnesignalPushnotification do
     expect(body["app_id"]).to eq("app-id")
     expect(body["target_channel"]).to eq("push")
     expect(body["contents"]).to eq("en" => "sender 有新通知: hello from discourse")
-    expect(body["Huawei_category"]).to eq("MARKETING")
-    expect(body).not_to have_key("huawei_category")
+    expect(body["huawei_category"]).to eq("MARKETING")
+    expect(body).not_to have_key("Huawei_category")
     expect(body["include_aliases"]).to eq(
       "external_id" => ["discourse-user-#{user.id}"],
     )
@@ -69,7 +69,7 @@ describe Jobs::OnesignalPushnotification do
       "username" => user.username,
     )
 
-    expect(body["Huawei_category"]).to eq("IM")
+    expect(body["huawei_category"]).to eq("IM")
   end
 
   it "omits Huawei category when the configured fallback is blank and the notification type is unknown" do
@@ -86,6 +86,7 @@ describe Jobs::OnesignalPushnotification do
       "username" => user.username,
     )
 
+    expect(body).not_to have_key("huawei_category")
     expect(body).not_to have_key("Huawei_category")
   end
 
@@ -119,7 +120,7 @@ describe Jobs::OnesignalPushnotification do
       "username" => user.username,
     )
 
-    expect(body["Huawei_category"]).to eq("SUBSCRIPTION")
+    expect(body["huawei_category"]).to eq("SUBSCRIPTION")
     expect(body["contents"]).to eq("en" => "你关注的内容有更新: hello from discourse")
   end
 
@@ -136,7 +137,7 @@ describe Jobs::OnesignalPushnotification do
       "username" => user.username,
     )
 
-    expect(body["Huawei_category"]).to eq("WORK")
+    expect(body["huawei_category"]).to eq("WORK")
     expect(body["contents"]).to eq("en" => "你有新的待办事项: hello from discourse")
   end
 
@@ -153,7 +154,7 @@ describe Jobs::OnesignalPushnotification do
       "username" => user.username,
     )
 
-    expect(body["Huawei_category"]).to eq("SUBSCRIPTION")
+    expect(body["huawei_category"]).to eq("SUBSCRIPTION")
     expect(body["contents"]).to eq("en" => "sender 回复了你: hello from discourse")
   end
 
@@ -170,7 +171,7 @@ describe Jobs::OnesignalPushnotification do
       "username" => user.username,
     )
 
-    expect(body["Huawei_category"]).to eq("SUBSCRIPTION")
+    expect(body["huawei_category"]).to eq("SUBSCRIPTION")
     expect(body["contents"]).to eq("en" => "sender 提到了你: hello from discourse")
   end
 
@@ -187,7 +188,7 @@ describe Jobs::OnesignalPushnotification do
       "username" => user.username,
     )
 
-    expect(body["Huawei_category"]).to eq("SUBSCRIPTION")
+    expect(body["huawei_category"]).to eq("SUBSCRIPTION")
     expect(body["contents"]).to eq("en" => "sender 赞了你的内容: hello from discourse")
   end
 

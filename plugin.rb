@@ -156,8 +156,8 @@ module ::DiscourseOnesignal
     huawei_category = huawei_category_for(payload)
     return if huawei_category.blank?
 
-    # OneSignal's Create Message API documents this key with an uppercase H.
-    params["Huawei_category"] = huawei_category
+    # OneSignal's Create Message API documents this key in lowercase.
+    params["huawei_category"] = huawei_category
   end
 
   def self.notification_type_name(payload)
