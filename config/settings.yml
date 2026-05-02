@@ -6,5 +6,6 @@ plugins:
     client: true
   onesignal_rest_api_key:
     default: ''
+    secret: true
   onesignal_huawei_category:
     default: 'MARKETING'
