@@ -26,10 +26,18 @@ module DiscourseOnesignal
       record.subscription_id = subscription_id if record.respond_to?(:subscription_id=)
       record.save!
 
+      Rails.logger.info(
+        "OneSignal subscription updated request_id=#{request.request_id} user_id=#{current_user.id} platform=#{platform}",
+      )
+
       render json: record.as_json.merge(onesignal_identity_json)
     end
 
     def identity
+      Rails.logger.info(
+        "OneSignal identity requested request_id=#{request.request_id} user_id=#{current_user.id}",
+      )
+
       render json: onesignal_identity_json
     end
 
