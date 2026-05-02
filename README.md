@@ -20,14 +20,13 @@ message named `onesignalIdentity`. Its payload is:
 }
 ```
 
-Enable OneSignal Identity Verification in the OneSignal dashboard, then copy the
-key OneSignal expects for `external_id_auth_hash` verification into the
-Discourse site setting `onesignal_identity_verification_secret`. This setting is
-server-side only and is used to sign the current user's external id. For legacy
-OneSignal Identity Verification setups, this is commonly the OneSignal REST API
-Key; if your OneSignal dashboard or SDK documentation shows a separate Identity
-Verification secret, use that separate secret instead. The value in Discourse
-must exactly match the key OneSignal uses to verify the HMAC-SHA256 hash.
+Enable OneSignal Identity Verification in the OneSignal dashboard. This plugin
+uses the existing Discourse site setting `onesignal_rest_api_key` to generate the
+legacy `external_id_auth_hash` value for the current user's external id. OneSignal's
+current Identity Verification docs describe a JWT-based flow, while the legacy
+hash flow used by older SDKs does not expose a separate "identity verification
+secret" setting; the HMAC key is the REST API key already configured for sending
+notifications.
 
 When this message is received, call OneSignal login with both the external id and
 the server-generated auth hash. For SDKs that use the legacy auth-hash API this
@@ -42,10 +41,17 @@ If `/onesignal/identity.json` fails, the webview sends both
 and `onesignalLogout` messages so the native app can avoid leaving OneSignal
 bound to a stale Discourse user.
 
+Upgrade note: this plugin does not use a separate identity verification secret.
+Legacy `external_id_auth_hash` values are signed with `onesignal_rest_api_key`.
+If you previously tested a branch that introduced
+`onesignal_identity_verification_secret`, that value is now ignored. Verify that
+`onesignal_rest_api_key` matches the key expected by OneSignal for legacy HMAC
+verification before deploying.
+
 The old `/onesignal/subscribe.json` endpoint is still available for legacy
 clients and debug registration. Its JSON response also includes `external_id`
-and, when the secret is configured, `external_id_auth_hash`. Delivery is now
-based on the OneSignal external id.
+and, when `onesignal_rest_api_key` is configured, `external_id_auth_hash`.
+Delivery is now based on the OneSignal external id.
 
 ## Huawei notification categories
 
