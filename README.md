@@ -38,8 +38,9 @@ Discourse user logs out or switches accounts, call `OneSignal.logout()` before
 binding a different user.
 
 If `/onesignal/identity.json` fails, the webview sends both
-`onesignalIdentityError` and `onesignalLogout` messages so the native app can
-avoid leaving OneSignal bound to a stale Discourse user.
+`onesignalIdentityError` (including a best-effort `status` and `message` payload)
+and `onesignalLogout` messages so the native app can avoid leaving OneSignal
+bound to a stale Discourse user.
 
 The old `/onesignal/subscribe.json` endpoint is still available for legacy
 clients and debug registration. Its JSON response also includes `external_id`
