@@ -2,7 +2,7 @@
 
 module DiscourseOnesignal
   class OnesignalController < ::ApplicationController
-    requires_plugin DiscourseOnesignal
+    requires_plugin "discourse-onesignal"
 
     before_action :ensure_logged_in, except: [:app_login]
 
