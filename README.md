@@ -21,9 +21,13 @@ message named `onesignalIdentity`. Its payload is:
 ```
 
 Enable OneSignal Identity Verification in the OneSignal dashboard, then copy the
-identity verification secret into the Discourse site setting
-`onesignal_identity_verification_secret`. This setting is server-side only and is
-used to sign the current user's external id.
+key OneSignal expects for `external_id_auth_hash` verification into the
+Discourse site setting `onesignal_identity_verification_secret`. This setting is
+server-side only and is used to sign the current user's external id. For legacy
+OneSignal Identity Verification setups, this is commonly the OneSignal REST API
+Key; if your OneSignal dashboard or SDK documentation shows a separate Identity
+Verification secret, use that separate secret instead. The value in Discourse
+must exactly match the key OneSignal uses to verify the HMAC-SHA256 hash.
 
 When this message is received, call OneSignal login with both the external id and
 the server-generated auth hash. For SDKs that use the legacy auth-hash API this
@@ -32,6 +36,11 @@ uses an options object, pass the same value as `external_id_auth_hash`. Do not
 construct or accept arbitrary external ids in the mobile client. When the
 Discourse user logs out or switches accounts, call `OneSignal.logout()` before
 binding a different user.
+
+If `/onesignal/identity.json` fails, the webview sends both
+`onesignalIdentityError` (including a best-effort `status` and `message` payload)
+and `onesignalLogout` messages so the native app can avoid leaving OneSignal
+bound to a stale Discourse user.
 
 The old `/onesignal/subscribe.json` endpoint is still available for legacy
 clients and debug registration. Its JSON response also includes `external_id`

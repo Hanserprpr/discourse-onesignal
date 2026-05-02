@@ -2,6 +2,14 @@ import { ajax } from "discourse/lib/ajax";
 import { apiInitializer } from "discourse/lib/api";
 import { postRNWebviewMessage } from "discourse/lib/utilities";
 
+function identityErrorPayload(error) {
+  return {
+    status: error?.jqXHR?.status || error?.status,
+    message:
+      error?.message || error?.errorThrown || error?.jqXHR?.statusText || "identity_fetch_failed",
+  };
+}
+
 export default apiInitializer("1.0.0", (api) => {
   const container = api.container;
   const currentUser = api.getCurrentUser();
@@ -11,14 +19,19 @@ export default apiInitializer("1.0.0", (api) => {
   if (capabilities.isAppWebview && currentUser) {
     postRNWebviewMessage("currentUsername", currentUser.username);
 
-    ajax("/onesignal/identity.json").then((identity) => {
-      postRNWebviewMessage("onesignalIdentity", {
-        externalId: identity.external_id,
-        externalIdAuthHash: identity.external_id_auth_hash,
-        username: currentUser.username,
-        appId: siteSettings.onesignal_app_id,
+    ajax("/onesignal/identity.json")
+      .then((identity) => {
+        postRNWebviewMessage("onesignalIdentity", {
+          externalId: identity.external_id,
+          externalIdAuthHash: identity.external_id_auth_hash,
+          username: currentUser.username,
+          appId: siteSettings.onesignal_app_id,
+        });
+      })
+      .catch((error) => {
+        postRNWebviewMessage("onesignalIdentityError", identityErrorPayload(error));
+        postRNWebviewMessage("onesignalLogout", true);
       });
-    });
   } else if (capabilities.isAppWebview) {
     postRNWebviewMessage("onesignalLogout", true);
   }
