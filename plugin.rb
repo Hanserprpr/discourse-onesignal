@@ -1,15 +1,16 @@
 # name: discourse-onesignal
-# about: Push notifications via the OneSignal API.
+# about: Push notifications via the Orbithy Notify API.
 # version: 2.0
 # authors: pmusaraj
 # url: https://github.com/pmusaraj/discourse-onesignal
 
+require "digest"
 require "net/http"
 require "json"
 require "openssl"
 require "set"
 
-enabled_site_setting :onesignal_push_enabled
+enabled_site_setting :orbithy_notify_enabled
 
 register_asset 'stylesheets/common/app-login.scss'
 register_asset 'stylesheets/mobile/app-login.scss', :mobile
@@ -17,7 +18,8 @@ register_asset 'stylesheets/mobile/app-login.scss', :mobile
 load File.expand_path('lib/discourse-onesignal/engine.rb', __dir__)
 
 module ::DiscourseOnesignal
-  ONESIGNAL_NOTIFICATIONS_API = "https://api.onesignal.com/notifications"
+  ORBITHY_PUSH_SEND_PATH = "/api/v1/push/send"
+  ORBITHY_DEVICE_REGISTER_PATH = "/api/v1/device/register"
 
   HUAWEI_CATEGORY_BY_NOTIFICATION_TYPE = {
     "private_message" => "IM",
@@ -73,7 +75,7 @@ module ::DiscourseOnesignal
   end
 
   def self.external_id_auth_hash_for(user_id)
-    secret = SiteSetting.onesignal_rest_api_key
+    secret = SiteSetting.orbithy_notify_app_secret
     return if secret.blank?
 
     OpenSSL::HMAC.hexdigest("SHA256", secret, external_id_for(user_id))
@@ -143,21 +145,20 @@ module ::DiscourseOnesignal
     excerpt.present? ? "#{subject}: #{excerpt}" : subject
   end
 
-  def self.huawei_category_for(payload)
+  def self.push_category_for(payload)
     notification_type = notification_type_name(payload)
 
     HUAWEI_CATEGORY_BY_NOTIFICATION_TYPE.fetch(
       notification_type,
-      SiteSetting.onesignal_huawei_category,
+      SiteSetting.orbithy_notify_push_category,
     )
   end
 
-  def self.add_huawei_category!(params, payload)
-    huawei_category = huawei_category_for(payload)
-    return if huawei_category.blank?
+  def self.add_push_category!(params, payload)
+    push_category = push_category_for(payload)
+    return if push_category.blank?
 
-    # OneSignal's Create Message API documents this key in lowercase.
-    params["huawei_category"] = huawei_category
+    params["push_category"] = push_category
   end
 
   def self.notification_type_name(payload)
@@ -180,6 +181,43 @@ module ::DiscourseOnesignal
   def self.private_message_notification?(payload)
     PRIVATE_MESSAGE_NOTIFICATION_TYPES.include?(notification_type_name(payload))
   end
+
+  def self.orbithy_api_base_url
+    SiteSetting.orbithy_notify_api_url.to_s.sub(%r{/*\z}, "")
+  end
+
+  def self.orbithy_uri_for(path)
+    URI.parse("#{orbithy_api_base_url}#{path}")
+  end
+
+  def self.orbithy_signature(method, path, timestamp, body)
+    body_hash = Digest::SHA256.hexdigest(body)
+    canonical = [method.upcase, path, timestamp, body_hash].join("\n")
+    OpenSSL::HMAC.hexdigest("SHA256", SiteSetting.orbithy_notify_app_secret, canonical)
+  end
+
+  def self.orbithy_json_request(method, path, body)
+    uri = orbithy_uri_for(path)
+    http = Net::HTTP.new(uri.host, uri.port)
+    http.use_ssl = true if uri.scheme == "https"
+
+    body_json = body.as_json.to_json
+    timestamp = Time.now.to_i.to_s
+    signature = orbithy_signature(method, uri.path, timestamp, body_json)
+
+    request_class = method.to_s.upcase == "POST" ? Net::HTTP::Post : Net::HTTP::Get
+    request =
+      request_class.new(
+        uri.request_uri,
+        "Content-Type" => "application/json;charset=utf-8",
+        "X-App-Id" => SiteSetting.orbithy_notify_app_id,
+        "X-Timestamp" => timestamp,
+        "X-Signature" => signature,
+      )
+    request.body = body_json
+
+    http.request(request)
+  end
 end
 
 after_initialize do
@@ -189,13 +227,18 @@ after_initialize do
   end
 
   DiscourseEvent.on(:post_notification_alert) do |user, payload|
-    if SiteSetting.onesignal_app_id.blank?
-      Rails.logger.warn('OneSignal App ID is missing')
+    if SiteSetting.orbithy_notify_api_url.blank?
+      Rails.logger.warn("Orbithy Notify API URL is missing")
       next
     end
 
-    if SiteSetting.onesignal_rest_api_key.blank?
-      Rails.logger.warn('OneSignal REST API Key is missing')
+    if SiteSetting.orbithy_notify_app_id.blank?
+      Rails.logger.warn("Orbithy Notify App ID is missing")
+      next
+    end
+
+    if SiteSetting.orbithy_notify_app_secret.blank?
+      Rails.logger.warn("Orbithy Notify App Secret is missing")
       next
     end
 
@@ -214,7 +257,7 @@ after_initialize do
         user_id = args["user_id"]
 
         if user_id.blank?
-          Rails.logger.warn("OneSignal push skipped: missing user_id")
+          Rails.logger.warn("Orbithy Notify push skipped: missing user_id")
           return
         end
 
@@ -222,7 +265,6 @@ after_initialize do
         external_id = ::DiscourseOnesignal.external_id_for(user_id)
 
         params = {
-          "app_id" => SiteSetting.onesignal_app_id,
           "target_channel" => "push",
           "include_aliases" => {
             "external_id" => [external_id],
@@ -230,39 +272,38 @@ after_initialize do
           "contents" => {"en" => ::DiscourseOnesignal.push_content_for(payload)},
           "headings" => {"en" => ::DiscourseOnesignal.push_heading_for(payload)},
           "data" => {"discourse_url" => post_url},
+          "notification_type" => ::DiscourseOnesignal.notification_type_name(payload),
           "ios_badgeType" => "Increase",
           "ios_badgeCount" => "1",
         }
 
-        ::DiscourseOnesignal.add_huawei_category!(params, payload)
-        huawei_category = params["huawei_category"]
+        ::DiscourseOnesignal.add_push_category!(params, payload)
+        params.compact!
+        push_category = params["push_category"]
 
-        uri = URI.parse(::DiscourseOnesignal::ONESIGNAL_NOTIFICATIONS_API)
-        http = Net::HTTP.new(uri.host, uri.port)
-        http.use_ssl = true if uri.scheme == 'https'
-
-        request = Net::HTTP::Post.new(uri.request_uri,
-            'Content-Type'  => 'application/json;charset=utf-8',
-            'Authorization' => "Key #{SiteSetting.onesignal_rest_api_key}")
-        request.body = params.as_json.to_json
-        response = http.request(request)
+        response =
+          ::DiscourseOnesignal.orbithy_json_request(
+            "POST",
+            ::DiscourseOnesignal::ORBITHY_PUSH_SEND_PATH,
+            params,
+          )
 
         case response
         when Net::HTTPSuccess
           response_body = JSON.parse(response.body.presence || "{}") rescue {}
 
-          if response_body["id"].present?
+          if response_body["messageId"].present?
             Rails.logger.info(
-              "OneSignal push sent notification_id=#{response_body["id"]} user_id=#{user_id} username=#{args['username']} external_id=#{external_id} huawei_category=#{huawei_category || 'none'}",
+              "Orbithy Notify push sent message_id=#{response_body["messageId"]} user_id=#{user_id} username=#{args['username']} external_id=#{external_id} push_category=#{push_category || 'none'}",
             )
           else
             Rails.logger.info(
-              "OneSignal accepted push request without notification_id user_id=#{user_id} username=#{args['username']} external_id=#{external_id} huawei_category=#{huawei_category || 'none'}",
+              "Orbithy Notify accepted push request without message_id user_id=#{user_id} username=#{args['username']} external_id=#{external_id} push_category=#{push_category || 'none'}",
             )
           end
         else
           Rails.logger.error(
-            "OneSignal push failed user_id=#{user_id} username=#{args['username']} external_id=#{external_id} huawei_category=#{huawei_category || 'none'} http_status=#{response.code} response_body=#{response.body}",
+            "Orbithy Notify push failed user_id=#{user_id} username=#{args['username']} external_id=#{external_id} push_category=#{push_category || 'none'} http_status=#{response.code} response_body=#{response.body}",
           )
         end
 

@@ -1,76 +1,119 @@
 # discourse-onesignal
 
-See https://meta.discourse.org/t/whiltelisted-discourse-app-with-push-notifications-via-onesignal/58247 
+Discourse push notifications through [Orbithy Notify](https://github.com/Hanserprpr/orbithy-notify).
 
-## Current OneSignal integration
+The plugin keeps the historical `/onesignal/*` routes and `DiscourseOnesignal`
+JavaScript object for mobile-app compatibility, but the backend now talks to
+Orbithy Notify.
 
-This plugin targets the current OneSignal user model. Discourse sends push
-notifications through `https://api.onesignal.com/notifications` using
-`include_aliases.external_id`.
+## Settings
 
-The mobile app should initialize the OneSignal SDK and listen for the webview
-message named `onesignalIdentity`. Its payload is:
+Enable the plugin with:
+
+- `orbithy_notify_enabled`
+- `orbithy_notify_api_url`, for example `http://localhost:8080`
+- `orbithy_notify_app_id`
+- `orbithy_notify_app_secret`
+- `orbithy_notify_push_category`, fallback category for unknown notification types
+
+Orbithy Notify signs external API requests with:
+
+```text
+METHOD
+/path
+timestamp
+sha256(body)
+```
+
+The plugin sends `X-App-Id`, `X-Timestamp`, and `X-Signature` headers for both
+device registration and push delivery.
+
+## Mobile WebView Bridge
+
+When a logged-in user opens Discourse inside the app, the plugin posts an
+`orbithyNotifyIdentity` message:
 
 ```json
 {
   "externalId": "discourse-user-123",
   "externalIdAuthHash": "hmac-sha256-signature",
+  "userId": 123,
   "username": "alice",
-  "appId": "onesignal-app-id"
+  "appId": "app_dev",
+  "apiUrl": "https://notify.example.com"
 }
 ```
 
-Enable OneSignal Identity Verification in the OneSignal dashboard. This plugin
-uses the existing Discourse site setting `onesignal_rest_api_key` to generate the
-legacy `external_id_auth_hash` value for the current user's external id. OneSignal's
-current Identity Verification docs describe a JWT-based flow, while the legacy
-hash flow used by older SDKs does not expose a separate "identity verification
-secret" setting; the HMAC key is the REST API key already configured for sending
-notifications.
+For legacy app builds, the same payload is also sent as `onesignalIdentity`.
+Logout/error compatibility messages are also preserved:
 
-When this message is received, call OneSignal login with both the external id and
-the server-generated auth hash. For SDKs that use the legacy auth-hash API this
-looks like `OneSignal.login(externalId, externalIdAuthHash)`; if your SDK version
-uses an options object, pass the same value as `external_id_auth_hash`. Do not
-construct or accept arbitrary external ids in the mobile client. When the
-Discourse user logs out or switches accounts, call `OneSignal.logout()` before
-binding a different user.
+- `orbithyNotifyLogout` and `onesignalLogout`
+- `orbithyNotifyIdentityError` and `onesignalIdentityError`
 
-If `/onesignal/identity.json` fails, the webview sends both
-`onesignalIdentityError` (including a best-effort `status` and `message` payload)
-and `onesignalLogout` messages so the native app can avoid leaving OneSignal
-bound to a stale Discourse user.
+Native apps can register push tokens through either bridge:
 
-Upgrade note: this plugin does not use a separate identity verification secret.
-Legacy `external_id_auth_hash` values are signed with `onesignal_rest_api_key`.
-If you previously tested a branch that introduced
-`onesignal_identity_verification_secret`, that value is now ignored. Verify that
-`onesignal_rest_api_key` matches the key expected by OneSignal for legacy HMAC
-verification before deploying.
+```js
+window.DiscourseOrbithyNotify.registerDevice(
+  token,
+  "android",
+  "My App",
+  null,
+  "hms",
+  "Mate 60",
+  "1.0.0"
+);
+```
 
-The old `/onesignal/subscribe.json` endpoint is still available for legacy
-clients and debug registration. Its JSON response also includes `external_id`
-and, when `onesignal_rest_api_key` is configured, `external_id_auth_hash`.
-Delivery is now based on the OneSignal external id.
+The legacy call still works:
 
-## Huawei notification categories
+```js
+window.DiscourseOnesignal.subscribeDeviceToken(token, platform, applicationName);
+```
 
-This plugin sends OneSignal's documented `huawei_category` field. The category is mapped
-from Discourse's `notification_type` when available, and falls back to the
-`onesignal_huawei_category` site setting. The fallback default is `MARKETING`,
-for any notification type the plugin cannot identify. If the fallback setting is
-blank and the plugin cannot map the notification type, the field is omitted.
+Both call `/onesignal/subscribe.json`, store the local legacy subscription
+record, and register the device with Orbithy Notify at
+`/api/v1/device/register`.
 
-| Huawei major category | Fine category number and type | huawei_category | Discourse notification types | Example |
-| --- | --- | --- | --- | --- |
-| 服务与通讯 > 社交通讯 | 1 即时聊天 | `IM` | `private_message`, `invited_to_private_message`, `group_message_summary`, `chat_message`, `chat_mention` | `李四 有新私信: 你好，方便看一下这个问题吗？` |
-| 服务与通讯 > 服务提醒 | 3 订阅 | `SUBSCRIPTION` | `watching_first_post`, `topic_reminder`, `posted`, `invited_to_topic`, `mentioned`, `replied`, `quoted`, `group_mentioned`, `linked`, `liked`, `liked_consolidated`, `granted_badge`, `invitee_accepted` | `张三 有新回复: 我已经按教程配置好了...` |
-| 服务与通讯 > 服务提醒 | 6 工作事项提醒 | `WORK` | `assigned`, `post_approved`, `admin_problems`, `membership_request_accepted` | `有新的审核任务: 用户提交的帖子需要处理` |
-| 资讯营销 > 内容资讯 | 12 资讯营销/社交动态 | `MARKETING` | Unknown notification types only, through the fallback setting | `社区活动: 本周问答活动开始了` |
+## Push Delivery
 
-The current plugin does not generate Huawei travel, health, account, express,
-finance, device reminder, mail, VoIP, progress, alarm, timer, stopwatch, or
-location sharing categories.
+Discourse notification jobs call Orbithy Notify at `/api/v1/push/send` using its
+OneSignal-compatible request shape:
+
+```json
+{
+  "target_channel": "push",
+  "include_aliases": {
+    "external_id": ["discourse-user-123"]
+  },
+  "headings": {
+    "en": "插件安装后无法启动"
+  },
+  "contents": {
+    "en": "张三 回复了你: 请检查一下配置是否填写正确。"
+  },
+  "data": {
+    "discourse_url": "/t/topic/123"
+  },
+  "notification_type": "replied",
+  "push_category": "SUBSCRIPTION",
+  "ios_badgeType": "Increase",
+  "ios_badgeCount": "1"
+}
+```
+
+Orbithy accepts `discourse-user-{id}` external IDs directly.
+
+## Notification Categories
+
+The plugin maps Discourse notification types to Orbithy `push_category`.
+Orbithy applies the vendor-specific HMS/HONOR category behavior.
+
+| Category | Discourse notification types |
+| --- | --- |
+| `IM` | `private_message`, `invited_to_private_message`, `group_message_summary`, `chat_message`, `chat_mention` |
+| `SUBSCRIPTION` | `watching_first_post`, `topic_reminder`, `posted`, `invited_to_topic`, `mentioned`, `replied`, `quoted`, `group_mentioned`, `linked`, `liked`, `liked_consolidated`, `granted_badge`, `invitee_accepted` |
+| `WORK` | `assigned`, `post_approved`, `admin_problems`, `membership_request_accepted` |
+| `MARKETING` | Unknown notification types, through the fallback setting |
 
 Notification text is also formatted by type:
 
@@ -81,5 +124,5 @@ Notification text is also formatted by type:
 | `replied` | `插件安装后无法启动` | `张三 回复了你: 请检查一下配置是否填写正确。` |
 | `mentioned` | `插件安装后无法启动` | `张三 提到了你: @alice 可以帮忙看一下吗？` |
 | `liked` | `插件安装后无法启动` | `张三 赞了你的内容` |
-| `watching_first_post` | `新插件发布` | `你关注的内容有更新: OneSignal 插件已更新。` |
+| `watching_first_post` | `新插件发布` | `你关注的内容有更新: Orbithy Notify 插件已更新。` |
 | `assigned` | `待处理举报` | `你有新的待办事项: 用户提交的帖子需要审核。` |

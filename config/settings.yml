@@ -1,11 +1,13 @@
 plugins:
-  onesignal_push_enabled:
+  orbithy_notify_enabled:
     default: false
-  onesignal_app_id:
+  orbithy_notify_api_url:
+    default: 'http://localhost:8080'
+  orbithy_notify_app_id:
     default: ''
     client: true
-  onesignal_rest_api_key:
+  orbithy_notify_app_secret:
     default: ''
     secret: true
-  onesignal_huawei_category:
+  orbithy_notify_push_category:
     default: 'MARKETING'
